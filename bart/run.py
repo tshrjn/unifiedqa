@@ -105,18 +105,7 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 model.zero_grad()
 
             if global_step % args.eval_period == 0:
-                if args.skip_inference:
-                    logger.info("Step %d (epoch %d) Train loss %.2f" % (
-                            global_step,
-                            epoch,
-                            np.mean(train_losses)))
-                    train_losses = []
-                    model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
-                    if args.n_gpu > 1:
-                        model_state_dict = convert_to_single_gpu(model_state_dict)
-                    torch.save(model_state_dict, os.path.join(args.output_dir,
-                                                              "best-model-{}.pt".format(str(global_step).zfill(6))))
-                else:
+                if not args.skip_inference:
                     model.eval()
                     curr_em = inference(model if args.n_gpu==1 else model.module, dev_data)
                     logger.info("Step %d Train loss %.2f %s %.2f%% on epoch=%d" % (
@@ -141,6 +130,19 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                         if wait_step >= args.wait_step:
                             stop_training = True
                             break
+                else:
+                    if global_step % args.log_period == 0:
+                        logger.info("Step %d (epoch %d) Train loss %.2f" % (
+                                global_step,
+                                epoch,
+                                np.mean(train_losses)))
+                        train_losses = []
+                    if global_step % args.save_period == 0:
+                        model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
+                        if args.n_gpu > 1:
+                            model_state_dict = convert_to_single_gpu(model_state_dict)
+                        torch.save(model_state_dict, os.path.join(args.output_dir,
+                                                                    "best-model-{}.pt".format(str(global_step).zfill(6))))
                 model.train()
         if stop_training:
             break
@@ -164,10 +166,3 @@ def inference(model, dev_data, save_predictions=False):
     if save_predictions:
         dev_data.save_predictions(predictions)
     return np.mean(dev_data.evaluate(predictions))
-
-
-
-
-
-
-

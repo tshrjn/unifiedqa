@@ -80,6 +80,10 @@ def main():
                              "A number of warnings are expected for a normal SQuAD evaluation.")
     parser.add_argument('--eval_period', type=int, default=2000,
                         help="Evaluate & save model")
+    parser.add_argument('--log_period', type=int, default=2000,
+                        help="Evaluate & save model")
+    parser.add_argument('--save_period', type=int, default=2000,
+                        help="Evaluate & save model")
     parser.add_argument('--prefix', type=str, default='',
                         help="Prefix for saving predictions")
     parser.add_argument('--debug', action='store_true',
