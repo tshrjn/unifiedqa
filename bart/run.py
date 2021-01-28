@@ -130,6 +130,8 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                         if wait_step >= args.wait_step:
                             stop_training = True
                             break
+                    model.train()
+
             else:
                 if global_step % args.log_period == 0:
                     logger.info("Step %d (epoch %d) Train loss %.2f" % (
@@ -143,7 +145,6 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                         model_state_dict = convert_to_single_gpu(model_state_dict)
                     torch.save(model_state_dict, os.path.join(args.output_dir,
                                                                 "best-model-{}.pt".format(str(global_step).zfill(6))))
-                model.train()
         if stop_training:
             break
 
