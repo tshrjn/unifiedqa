@@ -83,8 +83,8 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
 
     logger.info("Starting training!")
     for epoch in range(int(args.num_train_epochs)):
+        logger.info(f"Epoch: {epoch} / {args.num_train_epochs}")
         for batch in train_data.dataloader:
-            global_step += 1
             batch = [b.to(torch.device("cuda")) for b in batch]
             loss = model(input_ids=batch[0], attention_mask=batch[1],
                          decoder_input_ids=batch[2], decoder_attention_mask=batch[3],
@@ -108,8 +108,9 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 if not args.skip_inference:
                     model.eval()
                     curr_em = inference(model if args.n_gpu==1 else model.module, dev_data)
-                    logger.info("Step %d Train loss %.2f %s %.2f%% on epoch=%d" % (
+                    logger.info("Step %d / %d Train loss %.2f %s %.2f%% on epoch=%d" % (
                             global_step,
+                            len(train_data.dataloader),
                             np.mean(train_losses),
                             dev_data.metric,
                             curr_em*100,
@@ -134,8 +135,9 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
 
             else:
                 if global_step % args.log_period == 0:
-                    logger.info("Step %d (epoch %d) Train loss %.2f" % (
+                    logger.info("Step %d / %d (epoch %d) Train loss %.2f" % (
                             global_step,
+                            len(train_data.dataloader),
                             epoch,
                             np.mean(train_losses)))
                     train_losses = []
@@ -145,6 +147,8 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                         model_state_dict = convert_to_single_gpu(model_state_dict)
                     torch.save(model_state_dict, os.path.join(args.output_dir,
                                                                 "best-model-{}.pt".format(str(global_step).zfill(6))))
+                model.train()
+            global_step += 1
         if stop_training:
             break
 

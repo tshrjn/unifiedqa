@@ -78,6 +78,8 @@ def main():
     parser.add_argument("--verbose", action='store_true',
                         help="If true, all of the warnings related to data processing will be printed. "
                              "A number of warnings are expected for a normal SQuAD evaluation.")
+    parser.add_argument('--metric', type=str, default='EM', choices=['EM', 'ANLS'],
+                        help="Evaluation Metric ")
     parser.add_argument('--eval_period', type=int, default=2000,
                         help="Evaluate & save model")
     parser.add_argument('--log_period', type=int, default=2000,

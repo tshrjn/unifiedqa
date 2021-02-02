@@ -4,6 +4,7 @@ import re
 import string
 import numpy as np
 from tqdm import tqdm
+from similarity.normalized_levenshtein import NormalizedLevenshtein
 
 import torch
 from torch.utils.data import Dataset, TensorDataset, DataLoader, RandomSampler, SequentialSampler
@@ -55,7 +56,7 @@ class QAData(object):
         self.load = not args.debug
         self.logger = logger
         self.args = args
-        self.metric = "EM"
+        self.metric = args.metric
         self.max_input_length = self.args.max_input_length
         self.tokenizer = None
         self.dataset = None
@@ -142,10 +143,18 @@ class QAData(object):
 
     def evaluate(self, predictions):
         assert len(predictions)==len(self), (len(predictions), len(self))
-        ems = []
+
+        if self.metric == 'EM':
+            eval_fn = get_exact_match
+        elif self.metric == 'ANLS':
+            eval_fn = get_norm_levenshtein
+        else:
+            raise NotImplementedError(f"Invalid metric: {self.metric}")
+
+        score = []
         for (prediction, dp) in zip(predictions, self.data):
-            ems.append(get_exact_match(prediction, dp["answer"]))
-        return ems
+            score.append(eval_fn(prediction, dp["answer"]))
+        return score
 
     def save_predictions(self, predictions):
         assert len(predictions)==len(self), (len(predictions), len(self))
@@ -154,6 +163,14 @@ class QAData(object):
         with open(save_path, "w") as f:
             json.dump(predictions, f)
         self.logger.info("Saved prediction in {}".format(save_path))
+
+def get_norm_levenshtein(prediction, groundtruth):
+    normalized_levenshtein = NormalizedLevenshtein()
+    if type(groundtruth)==list:
+        if len(groundtruth)==0:
+            return 0
+        return np.max([get_norm_levenshtein(prediction, gt) for gt in groundtruth])
+    return normalized_levenshtein.similarity(normalize_answer(prediction), normalize_answer(groundtruth))
 
 def get_exact_match(prediction, groundtruth):
     if type(groundtruth)==list:
@@ -217,5 +234,3 @@ class MyDataLoader(DataLoader):
             sampler=SequentialSampler(dataset)
             batch_size = args.predict_batch_size
         super(MyDataLoader, self).__init__(dataset, sampler=sampler, batch_size=batch_size)
-
-
