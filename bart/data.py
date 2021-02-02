@@ -161,7 +161,9 @@ class QAData(object):
         #prediction_dict = {dp["id"]:prediction for dp, prediction in zip(self.data, predictions)}
         save_path = os.path.join(self.args.output_dir, "{}predictions.json".format(self.args.prefix))
         with open(save_path, "w") as f:
-            json.dump(predictions, f)
+            d = {'predictions': predictions,
+            'groundtruth': self.data}
+            json.dump(d, f)
         self.logger.info("Saved prediction in {}".format(save_path))
 
 def get_norm_levenshtein(prediction, groundtruth):
