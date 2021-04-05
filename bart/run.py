@@ -67,6 +67,7 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
     global_step = 0
     train_losses = []
     best_accuracy = -1
+    best_train_loss = 1e3
     stop_training=False
 
     if args.checkpoint_step > 0:
@@ -104,49 +105,52 @@ def train(args, logger, model, train_data, dev_data, optimizer, scheduler):
                 scheduler.step()
                 model.zero_grad()
 
-            if global_step % args.eval_period == 0:
-                if not args.skip_inference:
-                    model.eval()
-                    curr_em = inference(model if args.n_gpu==1 else model.module, dev_data)
-                    logger.info("Step %d / %d Train loss %.2f %s %.2f%% on epoch=%d" % (
-                            global_step,
-                            len(train_data.dataloader),
-                            np.mean(train_losses),
-                            dev_data.metric,
-                            curr_em*100,
-                            epoch))
-                    train_losses = []
-                    if best_accuracy < curr_em:
-                        model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
-                        if args.n_gpu > 1:
-                            model_state_dict = convert_to_single_gpu(model_state_dict)
-                        torch.save(model_state_dict, os.path.join(args.output_dir, "best-model.pt"))
-                        logger.info("Saving model with best %s: %.2f%% -> %.2f%% on epoch=%d, global_step=%d" % \
-                                (dev_data.metric, best_accuracy*100.0, curr_em*100.0, epoch, global_step))
-                        best_accuracy = curr_em
-                        wait_step = 0
-                        stop_training = False
-                    else:
-                        wait_step += 1
-                        if wait_step >= args.wait_step:
-                            stop_training = True
-                            break
-                    model.train()
+            if global_step % args.eval_period == 0 and not args.skip_inference:
+                model.eval()
+                curr_em = inference(model if args.n_gpu==1 else model.module, dev_data)
+                logger.info("Step %d / %d Train loss %.2f %s %.2f%% on epoch=%d" % (
+                        global_step,
+                        len(train_data.dataloader),
+                        np.mean(train_losses),
+                        dev_data.metric,
+                        curr_em*100,
+                        epoch))
+                train_losses = []
+                if best_accuracy < curr_em:
+                    model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
+                    if args.n_gpu > 1:
+                        model_state_dict = convert_to_single_gpu(model_state_dict)
+                    torch.save(model_state_dict, os.path.join(args.output_dir, "best-model.pt"))
+                    logger.info("Saving model with best %s: %.2f%% -> %.2f%% on epoch=%d, global_step=%d" % \
+                            (dev_data.metric, best_accuracy*100.0, curr_em*100.0, epoch, global_step))
+                    best_accuracy = curr_em
+                    wait_step = 0
+                    stop_training = False
+                else:
+                    wait_step += 1
+                    if wait_step >= args.wait_step:
+                        stop_training = True
+                        break
+                model.train()
 
             else:
                 if global_step % args.log_period == 0:
+                    curr_train_loss = np.mean(train_losses)
                     logger.info("Step %d / %d (epoch %d) Train loss %.2f" % (
                             global_step,
                             len(train_data.dataloader),
                             epoch,
-                            np.mean(train_losses)))
+                            curr_train_loss))
                     train_losses = []
                 if global_step % args.save_period == 0:
                     model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
                     if args.n_gpu > 1:
                         model_state_dict = convert_to_single_gpu(model_state_dict)
-                    torch.save(model_state_dict, os.path.join(args.output_dir,
-                                                                "best-model-{}.pt".format(str(global_step).zfill(6))))
+                    if best_train_loss > curr_train_loss:
+                        logger.info(f"Saving model with best train loss: {best_train_loss :.2f} -> {curr_train_loss :.2f}")
+                        best_train_loss = curr_train_loss
+                        torch.save(model_state_dict, os.path.join(args.output_dir,
+                                                                "model-{}-loss-{:.2f}.pt".format(str(global_step).zfill(6), curr_train_loss)))
                 model.train()
             global_step += 1
         if stop_training:
